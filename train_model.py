@@ -1,76 +1,76 @@
-#import libraries
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
+# Import libraries
 import itertools
-from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestRegressor
+
+import matplotlib
+matplotlib.use("Agg")  # headless backend: works on GitHub Actions runners
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import seaborn as sns
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import confusion_matrix, precision_score, f1_score, recall_score
-sns.set(style='white')
+from sklearn.metrics import (confusion_matrix, f1_score, precision_score,
+                             recall_score)
+from sklearn.model_selection import train_test_split
 
-# Load Data
-dataset = pd.read_csv('iris.csv')
+sns.set_theme(style="white")
 
-# Feature names (Ensure no extra spaces or parentheses)
-dataset.columns = [colname.strip(' (cm)').replace(" ", "_") for colname in dataset.columns.tolist()]
-features_names = dataset.columns.tolist()[:4]
+# ---------------------------------------------------------------- Load data
+dataset = pd.read_csv("iris.csv")
 
-# Feature Engineering
-dataset['sepal_length_width_ratio'] = dataset['sepal_length'] / dataset['sepal_width']
-dataset['petal_length_width_ratio'] = dataset['petal_length'] / dataset['petal_width']
+# "sepal length (cm)" -> "sepal_length"
+dataset.columns = [
+    c.replace("(cm)", "").strip().replace(" ", "_") for c in dataset.columns
+]
 
-# Select Features (Correct the duplicate column issue)
-dataset = dataset[['sepal_length', 'sepal_width', 'petal_length', 'petal_width', 
-                   'sepal_length_width_ratio', 'petal_length_width_ratio', 'target']]
+# ------------------------------------------------------ Feature engineering
+dataset["sepal_length_width_ratio"] = dataset["sepal_length"] / dataset["sepal_width"]
+dataset["petal_length_width_ratio"] = dataset["petal_length"] / dataset["petal_width"]
 
-# Split Data
+dataset = dataset[[
+    "sepal_length", "sepal_width", "petal_length", "petal_width",
+    "sepal_length_width_ratio", "petal_length_width_ratio", "target",
+]]
+
+# --------------------------------------------------------------- Split data
 train_data, test_data = train_test_split(dataset, test_size=0.2, random_state=44)
 
-# X_train, y_train, X_test, y_test
-X_train = train_data.drop('target', axis=1).values.astype('float32')
-y_train = train_data.loc[:, 'target'].values.astype('int32')
-X_test = test_data.drop('target', axis=1).values.astype('float32')
-y_test = test_data.loc[:, 'target'].values.astype('int32')
+X_train = train_data.drop("target", axis=1).values.astype("float32")
+y_train = train_data["target"].values.astype("int32")
+X_test = test_data.drop("target", axis=1).values.astype("float32")
+y_test = test_data["target"].values.astype("int32")
 
-# Logistic Regression
-logreg = LogisticRegression(C=0.0001, solver='lbfgs', max_iter=100)
+# ------------------------------------------------------ Logistic Regression
+# (multi_class removed: lbfgs already uses multinomial loss)
+logreg = LogisticRegression(C=0.0001, solver="lbfgs", max_iter=100)
 logreg.fit(X_train, y_train)
 predictions_lr = logreg.predict(X_test)
 
 cm_lr = confusion_matrix(y_test, predictions_lr)
-f1_lr = f1_score(y_test, predictions_lr, average='micro')
-prec_lr = precision_score(y_test, predictions_lr, average='micro')
-recall_lr = recall_score(y_test, predictions_lr, average='micro')
-
-# Accuracy
+f1_lr = f1_score(y_test, predictions_lr, average="micro") * 100
+prec_lr = precision_score(y_test, predictions_lr, average="micro") * 100
+recall_lr = recall_score(y_test, predictions_lr, average="micro") * 100
 train_acc_lr = logreg.score(X_train, y_train) * 100
 test_acc_lr = logreg.score(X_test, y_test) * 100
 
-# Random Forest
-rf_reg = RandomForestRegressor()
-rf_reg.fit(X_train, y_train)
-predictions_rf = rf_reg.predict(X_test)
+# ------------------------------------------------------------ Random Forest
+rf = RandomForestClassifier(random_state=42)
+rf.fit(X_train, y_train)
+predictions_rf = rf.predict(X_test)
 
-# Convert predictions to class labels
-predictions_rf_class = np.round(predictions_rf).astype(int)
+f1_rf = f1_score(y_test, predictions_rf, average="micro") * 100
+prec_rf = precision_score(y_test, predictions_rf, average="micro") * 100
+recall_rf = recall_score(y_test, predictions_rf, average="micro") * 100
+train_acc_rf = rf.score(X_train, y_train) * 100
+test_acc_rf = rf.score(X_test, y_test) * 100
 
-f1_rf = f1_score(y_test, predictions_rf_class, average='micro')
-prec_rf = precision_score(y_test, predictions_rf_class, average='micro')
-recall_rf = recall_score(y_test, predictions_rf_class, average='micro')
 
-# Accuracy
-train_acc_rf = rf_reg.score(X_train, y_train) * 100
-test_acc_rf = rf_reg.score(X_test, y_test) * 100
-
-# Confusion Matrix Plotting Function
-def plot_cm(cm, target_name, title="Confusion Matrix", cmap=None, normalize=True):
+# ------------------------------------------------ Confusion matrix plotting
+def plot_cm(cm, target_name, title="Confusion Matrix", normalize=True):
     accuracy = np.trace(cm) / float(np.sum(cm))
     misclass = 1 - accuracy
-    cmap = plt.get_cmap('Blues')
     plt.figure(figsize=(12, 8))
-    plt.imshow(cm, interpolation='nearest', cmap=cmap)
+    plt.imshow(cm, interpolation="nearest", cmap=plt.get_cmap("Blues"))
     plt.title(title)
     plt.colorbar()
     if target_name is not None:
@@ -79,59 +79,50 @@ def plot_cm(cm, target_name, title="Confusion Matrix", cmap=None, normalize=True
         plt.yticks(tick_marks, target_name)
 
     if normalize:
-        cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+        cm = cm.astype("float") / cm.sum(axis=1)[:, np.newaxis]
     thresh = cm.max() / 1.5 if normalize else cm.max() / 2
     for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
-        if normalize:
-            plt.text(j, i, "{:0.4f}".format(cm[i, j]),
-                     horizontalalignment="center",
-                     color="white" if cm[i, j] > thresh else 'black')
-        else:
-            plt.text(j, i, "{:,}".format(cm[i, j]),
-                     horizontalalignment="center",
-                     color="white" if cm[i, j] > thresh else 'black')
+        text = "{:0.4f}".format(cm[i, j]) if normalize else "{:,}".format(cm[i, j])
+        plt.text(j, i, text, horizontalalignment="center",
+                 color="white" if cm[i, j] > thresh else "black")
 
     plt.tight_layout()
-    plt.ylabel('True Label')
-    plt.xlabel('Predicted Label\naccuracy={:0.4f}; misclass={:0.4f}'.format(accuracy, misclass))
-    plt.savefig('ConfusionMatrix.png', dpi=120)
-    plt.show()
+    plt.ylabel("True Label")
+    plt.xlabel("Predicted Label\naccuracy={:0.4f}; misclass={:0.4f}".format(accuracy, misclass))
+    plt.savefig("ConfusionMatrix.png", dpi=120)
+    plt.close()
 
-target_name = np.array(['setosa', 'versicolor', 'virginica'])
-plot_cm(cm_lr, target_name, title="Confusion Matrix (Logistic Regression)", cmap=None, normalize=True)
 
-# Feature Importance Plotting
-importances = rf_reg.feature_importances_
-labels = dataset.columns[:-1]  # Exclude 'target' column for features
-feature_df = pd.DataFrame(list(zip(labels, importances)), columns=['feature', 'importance'])
-features = feature_df.sort_values(by='importance', ascending=False)
+target_name = np.array(["setosa", "versicolor", "virginica"])
+plot_cm(cm_lr, target_name, title="Confusion Matrix (Logistic Regression)")
 
-# Create feature importance plot
+# ------------------------------------------------------- Feature importance
+feature_df = pd.DataFrame({
+    "feature": dataset.columns[:-1],
+    "importance": rf.feature_importances_,
+}).sort_values(by="importance", ascending=False)
+
 plt.figure(figsize=(12, 6))
-ax = sns.barplot(x='importance', y='feature', data=features)
-ax.set_xlabel('Importance', fontsize=14)
-ax.set_ylabel('Feature', fontsize=14)
-ax.set_title('Random Forest Feature Importances', fontsize=12)
+ax = sns.barplot(x="importance", y="feature", data=feature_df)
+ax.set_xlabel("Importance", fontsize=14)
+ax.set_ylabel("Feature", fontsize=14)
+ax.set_title("Random Forest Feature Importances", fontsize=12)
+plt.tight_layout()
+plt.savefig("FeatureImportance.png", dpi=120)  # save BEFORE closing
+plt.close()
 
-# Show the feature importance plot
-plt.tight_layout()  # Make sure layout is adjusted
-plt.show()  # This ensures the plot will be shown on the screen
-
-# Save the feature importance plot as a PNG image
-plt.savefig('FeatureImportance.png')
-
-# Saving Scores to a File
-with open('scores.txt', "w") as score:
-    score.write("Random Forest Train Var: %2.1f%%\n" % train_acc_rf)
-    score.write("Random Forest Test Var: %2.1f%%\n" % test_acc_rf)
+# ----------------------------------------------------------- Save the scores
+with open("scores.txt", "w") as score:
+    score.write("Random Forest Train Accuracy: %2.1f%%\n" % train_acc_rf)
+    score.write("Random Forest Test Accuracy: %2.1f%%\n" % test_acc_rf)
     score.write("F1 Score: %2.1f%%\n" % f1_rf)
     score.write("Recall Score: %2.1f%%\n" % recall_rf)
     score.write("Precision Score: %2.1f%%\n" % prec_rf)
-
     score.write("\n\n")
-
-    score.write("Logistic Regression Train Var: %2.1f%%\n" % train_acc_lr)
-    score.write("Logistic Regression Test Var: %2.1f%%\n" % test_acc_lr)
+    score.write("Logistic Regression Train Accuracy: %2.1f%%\n" % train_acc_lr)
+    score.write("Logistic Regression Test Accuracy: %2.1f%%\n" % test_acc_lr)
     score.write("F1 Score: %2.1f%%\n" % f1_lr)
     score.write("Recall Score: %2.1f%%\n" % recall_lr)
     score.write("Precision Score: %2.1f%%\n" % prec_lr)
+
+print(open("scores.txt").read())
