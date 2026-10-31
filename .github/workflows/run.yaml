@@ -1,0 +1,47 @@
+name: Model Training CICD
+
+permissions:
+  id-token: write
+  contents: write
+on:
+  push:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libcairo2-dev \
+            libjpeg-dev \
+            libpango1.0-dev \
+            libgif-dev \
+            librsvg2-dev
+
+      - uses: iterative/setup-cml@v2
+
+      - name: Train model
+        env:
+          REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          pip install -r requirements.txt
+          python train_model.py
+
+          echo "RF and LR Model Score" > report.md
+          cat scores.txt >> report.md
+
+          echo "Confusion Matrix & Feature Importance" > report1.md
+          echo '|[](./ConfusionMatrix.png "ConfusionMatrix")' >> report1.md
+          echo '|[](./FeatureImportance.png "FeatureImportance")' >> report1.md
+
+          cat report.md report1.md > combined_file.md
+          cml comment create combined_file.md
